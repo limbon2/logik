@@ -1,0 +1,8 @@
+{
+  "name": "no-framework",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "examples/no-framework/src",
+  "tags": [],
+  "targets": {}
+}
