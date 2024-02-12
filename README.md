@@ -20,6 +20,8 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 
 - [x] Separate Core from Rendering
 - [] Serialization/Deserialization
+- [] Groups
+- [] Zoom in/zoom out
 - [] Socket types
 - [] Socket connection validation
 - [] User input handling

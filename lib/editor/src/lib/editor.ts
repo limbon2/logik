@@ -1,6 +1,11 @@
-import { LogikSocket, LogikNode, LogikGraph } from '@logik/core';
+import { LogikSocket, LogikNode, LogikGraph, LogikConnection, ISerializedLogikGraph } from '@logik/core';
 import Konva from 'konva';
 import { BehaviorSubject } from 'rxjs';
+
+export interface ISerializedLogikEditor {
+  nodes: Record<string, { x: number; y: number }>;
+  graph: ISerializedLogikGraph;
+}
 
 export class LogikEditorDnDHandler {
   public draggedNode: LogikEditorNode | null = null;
@@ -37,7 +42,7 @@ export class LogikEditorSocketLine extends Konva.Line {
     });
   }
 
-  private updatePoints(): void {
+  public updatePoints(): void {
     const { x, y } = this.origin.getAbsolutePosition();
 
     if (this.target) {
@@ -143,6 +148,29 @@ export class LogikEditor {
       this.layer.add(node);
     });
 
+    /** TODO: This can be optimized */
+    this.graph.onSocketConnect$.subscribe((event: { data: LogikConnection }) => {
+      const { data: connection } = event;
+
+      const nodes = this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[];
+      const sockets = nodes.flatMap((node) =>
+        node.getChildren().filter((child) => child instanceof LogikEditorSocket)
+      ) as LogikEditorSocket[];
+
+      const origin = sockets.find((socket) => socket.model === connection.output);
+      const target = sockets.find((socket) => socket.model === connection.input);
+
+      if (!origin || !target)
+        throw new Error(
+          `[ERROR]: Could not instantiate line between sockets ${connection.output.id} and ${connection.input.id}. Sockets were not found in the editor`
+        );
+
+      const line = new LogikEditorSocketLine(origin);
+      line.target = target;
+
+      this.layer.add(line);
+    });
+
     this.stage.on('mouseup', () => {
       if (this.dndHandler.draggedLine && !this.dndHandler.draggedLine.target) {
         this.dndHandler.draggedLine.destroy();
@@ -175,5 +203,41 @@ export class LogikEditor {
 
   public render(): void {
     this.stage.add(this.layer);
+  }
+
+  public deserialize(data: ISerializedLogikEditor): void {
+    this.layer.clear();
+    this.graph.deserialize(data.graph);
+
+    const children = this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[];
+
+    const nodes: Record<string, LogikEditorNode> = children.reduce(
+      (acc, node) => ({ ...acc, [node.model.id]: node }),
+      {}
+    );
+
+    for (const [id, position] of Object.entries(data.nodes)) {
+      const node = nodes[id];
+      node.x(position.x);
+      node.y(position.y);
+    }
+
+    const lines = this.layer.getChildren((child) => child instanceof LogikEditorSocketLine) as LogikEditorSocketLine[];
+
+    for (const line of lines) {
+      line.updatePoints();
+    }
+  }
+
+  public serialize(): ISerializedLogikEditor {
+    const nodes = (this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[]).reduce(
+      (acc, node) => ({ ...acc, [node.model.id]: { x: node.x(), y: node.y() } }),
+      {}
+    );
+
+    return {
+      nodes,
+      graph: this.graph.serialize(),
+    };
   }
 }
