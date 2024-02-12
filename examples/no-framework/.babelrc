@@ -1,0 +1,11 @@
+{
+  "presets": [
+    [
+      "@nx/js/babel",
+      {
+        "useBuiltIns": "entry",
+        "target": ["ES2015"]
+      }
+    ]
+  ]
+}
