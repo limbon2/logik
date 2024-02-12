@@ -18,12 +18,16 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 
 # TODO
 
-- [] Separate Core from Rendering
-- [] Serialization
+- [x] Separate Core from Rendering
+- [] Serialization/Deserialization
+- [] Socket types
+- [] Socket connection validation
 - [] User input handling
 - [] Text Input
 - [] Number Input
 - [] Select Input
-- [] Variables
+- [] Root Node
 - [] Running graphs
+- [] Variables
 - [] Styling
+- [] Refactor

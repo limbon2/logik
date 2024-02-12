@@ -15,7 +15,8 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@logik/core": ["lib/core/src/index.ts"]
+      "@logik/core": ["lib/core/src/index.ts"],
+      "@logik/editor": ["lib/editor/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

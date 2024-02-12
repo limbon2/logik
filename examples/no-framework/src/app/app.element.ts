@@ -1,6 +1,7 @@
 import './app.element.css';
 
-import { LogikEditor, LogikEventBus, LogikGraph, LogikNode, LogikNodeRegistry, LogikSocket } from '@logik/core';
+import { LogikEventBus, LogikGraph, LogikNode, LogikNodeRegistry, LogikSocket } from '@logik/core';
+import { LogikEditor } from '@logik/editor';
 
 class TestNode extends LogikNode {
   constructor() {
@@ -27,9 +28,5 @@ const container = document.querySelector('#root') as HTMLDivElement;
 const editor = new LogikEditor(graph, container);
 editor.render();
 
-graph.addNode('test');
-graph.addNode('test');
-graph.addNode('test');
-graph.addNode('test');
 graph.addNode('test');
 graph.addNode('test');
