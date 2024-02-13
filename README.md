@@ -19,8 +19,9 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 # TODO
 
 - [x] Separate Core from Rendering
-- [] Serialization/Deserialization
-- [] Groups
+- [x] Serialization/Deserialization
+- [x] Group drag
+- [] Serializable groups, comments
 - [] Zoom in/zoom out
 - [] Socket types
 - [] Socket connection validation
