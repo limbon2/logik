@@ -1,0 +1,17 @@
+.logik-context-menu {
+  width: 300px;
+  height: 300px;
+  border: 1px solid black;
+  background: white;
+  overflow: auto;
+}
+
+.logik-context-menu .logik-context-menu__node {
+  padding: 2px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.logik-context-menu .logik-context-menu__node:hover {
+  background-color: #eee;
+}

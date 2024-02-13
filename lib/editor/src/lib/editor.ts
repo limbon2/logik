@@ -2,6 +2,7 @@ import { LogikSocket, LogikNode, LogikGraph, LogikConnection, ISerializedLogikGr
 import Konva from 'konva';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { difference } from 'lodash';
+import { LogikEditorContextMenu } from './nodes-context-menu/nodes-context-menu';
 
 export interface ISerializedLogikEditor {
   nodes: Record<string, { x: number; y: number }>;
@@ -46,7 +47,7 @@ export class LogikEditorSocketLine extends Konva.Line {
     this.origin$.next(value);
   }
 
-  constructor(origin: LogikEditorSocket) {
+  constructor(origin: LogikEditorSocket, public readonly connection: LogikConnection | null = null) {
     super();
 
     this.origin$ = new BehaviorSubject<LogikEditorSocket>(origin);
@@ -91,10 +92,15 @@ export class LogikEditorSocket extends Konva.Group {
       this.add(name, shape);
     }
 
+    /** On socket click */
     this.on('mousedown', (event) => {
+      /** Prevent upper events from being handled */
       event.cancelBubble = true;
+      /** Create a temporary line that follows mouse cursor */
       const line = new LogikEditorSocketLine(this);
+      /** Add the line to the parent layer */
       this.getLayer()?.add(line);
+      /** Set the line in the dnd handler */
       dndHandler.draggedLine = line;
     });
 
@@ -250,6 +256,9 @@ export class LogikEditor {
 
   constructor(private readonly graph: LogikGraph, private readonly container: HTMLDivElement) {
     this.stage = new Konva.Stage({ width: container.clientWidth, height: container.clientHeight, container });
+    this.stage.container().tabIndex = 1;
+    this.stage.container().focus();
+
     this.layer = new Konva.Layer();
     this.layer.add(this.invisibleGroup);
 
@@ -258,7 +267,37 @@ export class LogikEditor {
       this.layer.add(node);
     });
 
-    /** TODO: This can be optimized */
+    /** Subscribe to socket disconnection */
+    this.graph.onSocketDisconnect$.subscribe((event: { data: LogikConnection }) => {
+      /** Find all lines presented in the editor */
+      const lines = this.layer.getChildren(
+        (child) => child instanceof LogikEditorSocketLine
+      ) as LogikEditorSocketLine[];
+
+      for (const line of lines) {
+        /** If line has a connection that equals the connection emitted from the event */
+        if (line.connection === event.data) {
+          /** Remove it */
+          line.remove();
+        }
+      }
+    });
+
+    /** Subscribe to node removal */
+    this.graph.onNodeRemoved$.subscribe((event: { data: LogikNode }) => {
+      /** Find all nodes presented in the editor */
+      const nodes = this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[];
+      /** Find a node that is associated with the node from the graph */
+      const node = nodes.find((n) => n.model === event.data);
+      /** If for some reason node is not present in the editor. Throw an error */
+      if (!node) {
+        throw new Error(`[ERROR]: Failure during node removal. The node ${event.data.id} was not found in the editor`);
+      }
+      /** Remove the node */
+      node.remove();
+    });
+
+    /** @TODO This can be optimized */
     this.graph.onSocketConnect$.subscribe((event: { data: LogikConnection }) => {
       const { data: connection } = event;
 
@@ -275,13 +314,40 @@ export class LogikEditor {
           `[ERROR]: Could not instantiate line between sockets ${connection.output.id} and ${connection.input.id}. Sockets were not found in the editor`
         );
 
-      const line = new LogikEditorSocketLine(origin);
+      const line = new LogikEditorSocketLine(origin, connection);
       line.target = target;
 
       this.layer.add(line);
     });
 
+    /** Subscribe to context menu click event */
+    this.stage.container().addEventListener('contextmenu', (event) => {
+      /** Prevent default browser context menu from appearing */
+      event.preventDefault();
+      event.stopPropagation();
+      /** Show our context menu */
+      this.showContextMenu(event.x, event.y);
+    });
+
+    /** Subscribe to key events happening inside the stages container */
+    this.stage.container().addEventListener('keydown', (event) => {
+      /** Handle remove buttons click */
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        /** Get all selected nodes */
+        this.dndHandler.draggedNodes.forEach((node) => {
+          /** And remove them from the graph.
+           *  The rest happens after onNodeRemoved event and onSocketDisconnect event if the node had any connections
+           */
+          this.graph.removeNode(node.model.id);
+        });
+      }
+    });
+
     this.stage.on('mousedown', (event) => {
+      if (event.evt.button === 2) {
+        return;
+      }
+
       if (!(event.target.parent instanceof LogikEditorNode) && event.target.parent !== this.invisibleGroup) {
         this.drawGroupRect(event.evt.x, event.evt.y);
       } else if (
@@ -293,6 +359,10 @@ export class LogikEditor {
     });
 
     this.stage.on('mouseup', (event) => {
+      if (event.evt.button === 2) {
+        return;
+      }
+
       if (event.target.parent !== this.invisibleGroup) {
         if (event.target.parent?.parent === this.invisibleGroup) {
           return;
@@ -301,18 +371,27 @@ export class LogikEditor {
         this.invisibleGroup.clear();
       }
 
+      /** If we drag a line from a socket but we haven't connected it to anything */
       if (this.dndHandler.draggedLine && !this.dndHandler.draggedLine.target) {
+        /** Remove the line */
         this.dndHandler.draggedLine.destroy();
+        this.dndHandler.draggedLine = null;
       }
 
+      /** If we drag a line from a socket and also has just connected it to other socket*/
       if (this.dndHandler.draggedLine && this.dndHandler.draggedLine.target) {
+        /** Connected the sockets in the graph, the rest happens after onSocketConnect emits */
         this.graph.connectSockets(
           this.dndHandler.draggedLine.origin.model.id,
           this.dndHandler.draggedLine.target.model.id
         );
+        /**
+         * We still destroy the line because there will be a new one created after onSocketConnect event
+         * @TODO Maybe we can reuse the line and not create another one?
+         */
+        this.dndHandler.draggedLine.destroy();
+        this.dndHandler.draggedLine = null;
       }
-
-      this.dndHandler.draggedLine = null;
 
       /** TODO: Sometimes breaks when mouse is outside of browser window */
       if (this.groupRect) {
@@ -379,6 +458,15 @@ export class LogikEditor {
     this.groupRect.x(startX);
     this.groupRect.y(startY);
     this.layer.add(this.groupRect);
+  }
+
+  private showContextMenu(x: number, y: number): void {
+    const menu = new LogikEditorContextMenu(this.graph.registry, x, y);
+    document.body.appendChild(menu);
+
+    menu.onItemSelect$.subscribe((entry) => {
+      this.graph.addNode(entry.type);
+    });
   }
 
   public render(): void {

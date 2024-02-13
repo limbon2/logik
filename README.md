@@ -21,16 +21,22 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] Separate Core from Rendering
 - [x] Serialization/Deserialization
 - [x] Group drag
-- [] Serializable groups, comments
-- [] Zoom in/zoom out
+- [x] Node context menu
+- [x] Remove nodes
+- [] Root Node
+- [] Running graphs
 - [] Socket types
 - [] Socket connection validation
+- [] Disconnecting sockets
 - [] User input handling
 - [] Text Input
 - [] Number Input
 - [] Select Input
-- [] Root Node
-- [] Running graphs
+- [] Search input for context menu
+- [] Node config panel
 - [] Variables
+- [] Zoom in/zoom out
+- [] Serializable groups, comments
 - [] Styling
 - [] Refactor
+- [] Socket rerouting

@@ -27,9 +27,3 @@ const container = document.querySelector('#root') as HTMLDivElement;
 
 const editor = new LogikEditor(graph, container);
 editor.render();
-
-graph.addNode('test');
-graph.addNode('test');
-graph.addNode('test');
-graph.addNode('test');
-graph.addNode('test');

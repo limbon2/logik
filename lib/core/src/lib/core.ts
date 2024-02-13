@@ -46,7 +46,7 @@ export class LogikEventBus {
   }
 }
 
-class LogikNodeRegistryEntry {
+export class LogikNodeRegistryEntry {
   constructor(public readonly type: string, public readonly cls: Type<LogikNode>, public readonly args: any[]) {}
 }
 
@@ -55,6 +55,10 @@ export class LogikNodeRegistry {
 
   public register(type: string, cls: Type<LogikNode>, args: any[]): void {
     this.nodes.set(type, new LogikNodeRegistryEntry(type, cls, args));
+  }
+
+  public getAll(): LogikNodeRegistryEntry[] {
+    return Array.from(this.nodes.values());
   }
 
   public get(type: string): LogikNodeRegistryEntry | undefined {
@@ -129,9 +133,11 @@ export class LogikGraph {
   private readonly graph: DirectedGraph = new DirectedGraph();
 
   public readonly onNodeAdded$ = this.bus.on('node-add');
+  public readonly onNodeRemoved$ = this.bus.on('node-removed');
   public readonly onSocketConnect$ = this.bus.on('socket-connect');
+  public readonly onSocketDisconnect$ = this.bus.on('socket-disconnect');
 
-  constructor(private readonly registry: LogikNodeRegistry, private readonly bus: LogikEventBus) {}
+  constructor(public readonly registry: LogikNodeRegistry, private readonly bus: LogikEventBus) {}
 
   private insertNode(node: LogikNode): void {
     this.nodes.set(node.id, node);
@@ -152,6 +158,43 @@ export class LogikGraph {
       const instance = new entry.cls(...entry.args);
       this.insertNode(instance);
     }
+  }
+
+  /** Remove a node from the graph by its id */
+  public removeNode(nodeId: string): void {
+    /** Find possible node connections */
+    const edges = this.graph.edges().filter((id) => {
+      const connection = this.graph.getEdgeAttributes(id) as LogikConnection;
+      return connection.input.parent.id === nodeId || connection.output.parent.id === nodeId;
+    });
+
+    /** If node had any connections then remove the sockets connections first */
+    if (edges.length) {
+      edges.forEach((edge) => {
+        /** Get the connection to pass it to the disconnect event */
+        const connection = this.graph.getEdgeAttributes(edge);
+        this.graph.dropEdge(edge);
+        /** Emit event for the disconnected socket */
+        this.bus.emit('socket-disconnect', connection);
+      });
+    }
+
+    /** Find nodes sockets presented in the graph */
+    const sockets: string[] = this.graph.nodes().filter((id) => {
+      const socket = this.graph.getNodeAttributes(id) as LogikSocket;
+      return socket.parent.id === nodeId;
+    });
+    /** Remove each socket */
+    sockets.forEach((socket) => {
+      this.graph.dropNode(socket);
+    });
+
+    /** Find the node to be removed */
+    const node = this.nodes.get(nodeId);
+    /** And remove it */
+    this.nodes.delete(nodeId);
+    /** Emit event about the node that was removed */
+    this.bus.emit('node-removed', node);
   }
 
   public connectSockets(output: string, input: string, id?: string): void {
