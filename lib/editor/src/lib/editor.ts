@@ -291,7 +291,9 @@ export class LogikEditor {
       const node = nodes.find((n) => n.model === event.data);
       /** If for some reason node is not present in the editor. Throw an error */
       if (!node) {
-        throw new Error(`[ERROR]: Failure during node removal. The node ${event.data.id} was not found in the editor`);
+        throw new Error(
+          `[ERROR]: Failure during node removal. The node ${event.data.uuid} was not found in the editor`
+        );
       }
       /** Remove the node */
       node.remove();
@@ -338,7 +340,7 @@ export class LogikEditor {
           /** And remove them from the graph.
            *  The rest happens after onNodeRemoved event and onSocketDisconnect event if the node had any connections
            */
-          this.graph.removeNode(node.model.id);
+          this.graph.removeNode(node.model.uuid);
         });
       }
     });
@@ -480,7 +482,7 @@ export class LogikEditor {
     const children = this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[];
 
     const nodes: Record<string, LogikEditorNode> = children.reduce(
-      (acc, node) => ({ ...acc, [node.model.id]: node }),
+      (acc, node) => ({ ...acc, [node.model.uuid]: node }),
       {}
     );
 
@@ -499,7 +501,7 @@ export class LogikEditor {
 
   public serialize(): ISerializedLogikEditor {
     const nodes = (this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[]).reduce(
-      (acc, node) => ({ ...acc, [node.model.id]: { x: node.x(), y: node.y() } }),
+      (acc, node) => ({ ...acc, [node.model.uuid]: { x: node.x(), y: node.y() } }),
       {}
     );
 

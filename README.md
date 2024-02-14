@@ -23,9 +23,9 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] Group drag
 - [x] Node context menu
 - [x] Remove nodes
-- [] Root Node
-- [] Running graphs
-- [] Socket types
+- [x] Socket types
+- [x] Root Node
+- [x] Running graphs
 - [] Socket connection validation
 - [] Disconnecting sockets
 - [] User input handling

@@ -1,6 +1,8 @@
 import { DirectedGraph } from 'graphology';
 import { v4 as uuid } from 'uuid';
 import { Observable, Subject, filter } from 'rxjs';
+import { topologicalSort, topologicalGenerations } from 'graphology-dag';
+import { isEmpty, uniq } from 'lodash';
 
 export interface ISerializedLogikNode {
   id: string;
@@ -14,6 +16,7 @@ export interface ISerializedLogikNode {
 export interface ISerializedLogikSocket {
   id: string;
   name: string;
+  type: string;
   parentId: string;
 }
 
@@ -32,6 +35,16 @@ export interface ISerializedLogikGraph {
 
 interface Type<T> {
   new (...args: any[]): T;
+}
+
+/** Possible types of sockets */
+export enum LogikSocketType {
+  /** Produce is the type that is used for executing the next nodes in the current chain. Used only on output sockets */
+  Produce = 'produce',
+  /** Consume event type is used for receiving event from producer and it executes only producer triggers it. Used only on input sockets */
+  Consume = 'consume',
+  /** Text socket. Contains plain text. Nothing too fancy */
+  Text = 'text',
 }
 
 export class LogikEventBus {
@@ -79,7 +92,10 @@ export class LogikNodeRegistry {
 export class LogikConnection {
   public id: string = uuid();
 
-  constructor(public readonly output: LogikSocket, public readonly input: LogikSocket) {}
+  constructor(public readonly output: LogikSocket, public readonly input: LogikSocket) {
+    output.connection = this;
+    input.connection = this;
+  }
 
   public serialize(): ISerializedLogikConnection {
     return {
@@ -92,31 +108,57 @@ export class LogikConnection {
 
 export class LogikSocket {
   public id: string = uuid();
+  /** The connection of the socket. Assigned during connection initialization therefore cannot be accessed before */
+  public connection: LogikConnection;
 
-  constructor(public name: string, public parent: LogikNode) {}
+  constructor(public type: LogikSocketType, public name: string, public parent: LogikNode) {}
 
   public serialize(): ISerializedLogikSocket {
     return {
       id: this.id,
       name: this.name,
-      parentId: this.parent.id,
+      type: this.type,
+      parentId: this.parent.uuid,
     };
   }
 }
 
 export abstract class LogikNode {
-  public id: string = uuid();
+  public uuid: string = uuid();
   public properties: Record<string, unknown> = {};
   public readonly inputs: LogikSocket[] = [];
   public readonly outputs: LogikSocket[] = [];
+  public isRoot: boolean = false;
 
   constructor(public name: string) {}
+
+  /** Get property value at input index */
+  protected getInputProperty(index: number, property: string): any {
+    const socket = this.inputs[index];
+    if (!socket)
+      throw new Error(
+        `[ERROR]: Failed to get property ${property} of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in inputs`
+      );
+    return socket.connection.input.parent.properties[property];
+  }
+
+  /** Assign a value to a particular property in an output socket */
+  protected setOutputProperty(index: number, property: string, value: any): void {
+    const socket = this.outputs[index];
+    if (!socket)
+      throw new Error(
+        `[ERROR]: Failed to assign property ${property} of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in outputs`
+      );
+    if (socket.connection) {
+      socket.connection.input.parent.properties[property] = value;
+    }
+  }
 
   public abstract run(): void;
 
   public serialize(): ISerializedLogikNode {
     return {
-      id: this.id,
+      id: this.uuid,
       name: this.name,
       properties: this.properties,
       type: '',
@@ -140,7 +182,7 @@ export class LogikGraph {
   constructor(public readonly registry: LogikNodeRegistry, private readonly bus: LogikEventBus) {}
 
   private insertNode(node: LogikNode): void {
-    this.nodes.set(node.id, node);
+    this.nodes.set(node.uuid, node);
 
     for (const socket of [...node.inputs, ...node.outputs]) {
       this.graph.addNode(socket.id, socket);
@@ -165,7 +207,7 @@ export class LogikGraph {
     /** Find possible node connections */
     const edges = this.graph.edges().filter((id) => {
       const connection = this.graph.getEdgeAttributes(id) as LogikConnection;
-      return connection.input.parent.id === nodeId || connection.output.parent.id === nodeId;
+      return connection.input.parent.uuid === nodeId || connection.output.parent.uuid === nodeId;
     });
 
     /** If node had any connections then remove the sockets connections first */
@@ -182,7 +224,7 @@ export class LogikGraph {
     /** Find nodes sockets presented in the graph */
     const sockets: string[] = this.graph.nodes().filter((id) => {
       const socket = this.graph.getNodeAttributes(id) as LogikSocket;
-      return socket.parent.id === nodeId;
+      return socket.parent.uuid === nodeId;
     });
     /** Remove each socket */
     sockets.forEach((socket) => {
@@ -212,6 +254,62 @@ export class LogikGraph {
     this.bus.emit('socket-connect', connection);
   }
 
+  /** Run the current graph. Execute all nodes */
+  public run(): void {
+    /** Find the graph root nodes */
+    const roots = uniq(
+      this.graph
+        .nodes()
+        .map((socket) => (this.graph.getNodeAttributes(socket) as LogikSocket).parent)
+        .filter((node) => node.isRoot)
+    );
+
+    /** Make a set of nodes that were parsed */
+    const visited = new Set<LogikNode>();
+
+    /** Construct a tree of node executions */
+    const makeTree = (item: LogikNode): any => {
+      const next = item.outputs
+        .filter((output) => output.connection)
+        .filter((output) => !visited.has(output.connection.input.parent))
+        .map((output) => output.connection.input.parent);
+      const dependencies = item.inputs
+        .filter((input) => input.connection)
+        .filter((output) => !visited.has(output.connection.output.parent))
+        .map((input) => input.connection.output.parent);
+
+      visited.add(item);
+
+      return {
+        id: item.uuid,
+        name: item.name,
+        next: next.map((n: any) => makeTree(n)),
+        dependencies: dependencies.map((n: any) => makeTree(n)),
+      };
+    };
+
+    const tree = roots.map(makeTree);
+
+    /** Run each node in correct order */
+    const runTree = (t: any[]): void => {
+      for (const item of t) {
+        /** Find the node */
+        const node = this.nodes.get(item.id);
+
+        /** Run its dependencies if any */
+        if (item.dependencies) {
+          runTree(item.dependencies);
+        }
+        /** Run the node */
+        node?.run();
+        /** Run the next one using the same logic */
+        runTree(item.next);
+      }
+    };
+
+    runTree(tree);
+  }
+
   public deserialize(data: ISerializedLogikGraph): void {
     this.graph.clear();
     this.graph.clearEdges();
@@ -224,7 +322,7 @@ export class LogikGraph {
       if (!node) throw new Error(`[ERROR]: Could not parse node type ${serializedNode.type}. Node is not in registry`);
 
       const instance = new node.cls(...node.args);
-      instance.id = serializedNode.id;
+      instance.uuid = serializedNode.id;
       instance.name = serializedNode.name;
       instance.properties = serializedNode.properties;
 
@@ -234,7 +332,8 @@ export class LogikGraph {
       for (const inputId of serializedNode.inputs) {
         const serializedInput = data.sockets[inputId];
 
-        const input = new LogikSocket(serializedInput.name, instance);
+        const type = LogikSocketType[serializedInput.type as keyof typeof LogikSocketType];
+        const input = new LogikSocket(type, serializedInput.name, instance);
         input.id = serializedInput.id;
         input.name = serializedInput.name;
 
@@ -244,7 +343,8 @@ export class LogikGraph {
       for (const outputId of serializedNode.outputs) {
         const serializedOutput = data.sockets[outputId];
 
-        const output = new LogikSocket(serializedOutput.name, instance);
+        const type = LogikSocketType[serializedOutput.type as keyof typeof LogikSocketType];
+        const output = new LogikSocket(type, serializedOutput.name, instance);
         output.id = serializedOutput.id;
         output.name = serializedOutput.name;
 
@@ -261,7 +361,10 @@ export class LogikGraph {
 
   public serialize(): ISerializedLogikGraph {
     const nodes = Array.from(this.nodes.values()).reduce(
-      (acc, node) => ({ ...acc, [node.id]: { ...node.serialize(), type: this.registry.getFromInstance(node)?.type } }),
+      (acc, node) => ({
+        ...acc,
+        [node.uuid]: { ...node.serialize(), type: this.registry.getFromInstance(node)?.type },
+      }),
       {}
     );
     const sockets = this.graph
