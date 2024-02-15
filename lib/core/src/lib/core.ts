@@ -91,7 +91,11 @@ export class LogikNodeRegistry {
 export class LogikConnection {
   public id: string = uuid();
 
-  constructor(public readonly output: LogikSocket, public readonly input: LogikSocket) {
+  constructor(
+    public readonly output: LogikSocket,
+    public readonly input: LogikSocket,
+    public readonly graph: LogikGraph
+  ) {
     output.connection = this;
     input.connection = this;
   }
@@ -275,9 +279,9 @@ export class LogikGraph {
       /** Check if we connecting sockets from input to output */
       if (outputSocket.isInput) {
         /** Reverse if it is the case */
-        connection = new LogikConnection(inputSocket, outputSocket);
+        connection = new LogikConnection(inputSocket, outputSocket, this);
       } else {
-        connection = new LogikConnection(outputSocket, inputSocket);
+        connection = new LogikConnection(outputSocket, inputSocket, this);
       }
 
       /** If we provided an explicit id. Used during deserialization */
@@ -289,6 +293,22 @@ export class LogikGraph {
       /** Emit event about sockets being connected */
       this.bus.emit('socket-connect', connection);
     }
+  }
+
+  /** Disconnect socket connection */
+  public disconnectSockets(connection: LogikConnection): void {
+    /** Find id of the edge that the connection is associated with */
+    const connectionId = this.graph.edges().find((edge) => this.graph.getEdgeAttributes(edge) === connection);
+    /** If connection is not present, throw an error */
+    if (!connectionId) {
+      throw new Error(
+        `[ERROR]: Failed to disconnection connection - ${connectionId}. Connection was not found in the graph`
+      );
+    }
+
+    /** Remove the connection */
+    this.graph.dropEdge(connectionId);
+    this.bus.emit('socket-disconnect', connection);
   }
 
   /** Run the current graph. Execute all nodes */

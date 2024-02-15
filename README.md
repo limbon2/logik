@@ -26,14 +26,14 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] Socket types
 - [x] Root Node
 - [x] Running graphs
-- [] Socket connection validation
-- [] Multiple or single connections to sockets
-- [] Disconnecting sockets
+- [x] Socket connection validation
+- [x] Disconnecting sockets
 - [] User input handling
 - [] Text Input
 - [] Number Input
 - [] Select Input
 - [] Search input for context menu
+- [] Multiple or single connections to sockets
 - [] Node config panel
 - [] Variables
 - [] Zoom in/zoom out

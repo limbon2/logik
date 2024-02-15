@@ -75,6 +75,7 @@ export class LogikEditorDnDHandler {
   public readonly draggedLine$: Observable<LogikEditorSocketLine | null> = this._draggedLine.asObservable();
 }
 
+/** A visual representation of two connected sockets */
 export class LogikEditorSocketLine extends Konva.Line {
   private readonly target$: BehaviorSubject<LogikEditorSocket | null> = new BehaviorSubject<LogikEditorSocket | null>(
     null
@@ -102,7 +103,7 @@ export class LogikEditorSocketLine extends Konva.Line {
 
     this.origin$ = new BehaviorSubject<LogikEditorSocket>(origin);
 
-    this.strokeWidth(2);
+    this.strokeWidth(2.5);
     this.stroke('black');
 
     this.origin.parent?.on('dragmove', this.updatePoints.bind(this));
@@ -110,6 +111,25 @@ export class LogikEditorSocketLine extends Konva.Line {
     this.target$.subscribe((target) => {
       if (target) {
         target.parent?.on('dragmove', this.updatePoints.bind(this));
+      }
+    });
+
+    this.on('mouseenter', () => {
+      this.stroke('blue');
+    });
+    this.on('mouseleave', () => {
+      this.stroke('black');
+    });
+    /** Disconnect sockets on middle mouse button click
+     * @TODO Find a better way to handle connection removal
+     */
+    this.on('mousedown', (event) => {
+      if (event.evt.button === 1) {
+        event.evt.preventDefault();
+        event.evt.stopPropagation();
+        if (connection) {
+          connection.graph.disconnectSockets(connection);
+        }
       }
     });
   }
