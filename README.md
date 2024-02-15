@@ -30,7 +30,7 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] Disconnecting sockets
 - [x] User input handling
 - [x] Text Input
-- [] Zoom in/zoom out
+- [x] Zoom in/zoom out
 - [] Number Input
 - [] Select Input
 - [] Search input for context menu

@@ -407,6 +407,10 @@ export class LogikEditorNode extends Konva.Group {
     }
 
     this.updateHeight();
+
+    this.on('mousedown', () => {
+      this.startDrag();
+    });
   }
 
   public isSelected(value: boolean): void {
@@ -507,12 +511,22 @@ export class LogikEditor {
   private readonly visualValidator: LogikEditorSocketVisualValidator;
 
   /** Rectangle which is used to select a group of nodes */
-  private groupRect: Konva.Rect | null = null;
+  private groupRect: Konva.Line | null = null;
   /** An invisible group that is used to drag multiple nodes at the same time */
   private invisibleGroup: LogikInvisibleDragGroup = new LogikInvisibleDragGroup(this.dndHandler);
 
+  private mouseX: number = 0;
+  private mouseY: number = 0;
+
   constructor(private readonly graph: LogikGraph, private readonly container: HTMLDivElement) {
-    this.stage = new Konva.Stage({ width: container.clientWidth, height: container.clientHeight, container });
+    Konva.dragButtons = [1];
+
+    this.stage = new Konva.Stage({
+      width: container.clientWidth,
+      height: container.clientHeight,
+      container,
+      draggable: true,
+    });
     this.stage.container().tabIndex = 1;
     this.stage.container().focus();
 
@@ -523,6 +537,8 @@ export class LogikEditor {
 
     this.graph.onNodeAdded$.subscribe((event) => {
       const node = new LogikEditorNode(event.data, this.dndHandler);
+      node.x(this.mouseX);
+      node.y(this.mouseY);
       this.layer.add(node);
     });
 
@@ -605,12 +621,12 @@ export class LogikEditor {
     });
 
     this.stage.on('mousedown', (event) => {
-      if (event.evt.button === 2) {
+      if (event.evt.button === 2 || event.evt.button === 1) {
         return;
       }
 
       if (!(event.target.parent instanceof LogikEditorNode) && event.target.parent !== this.invisibleGroup) {
-        this.drawGroupRect(event.evt.x, event.evt.y);
+        this.drawGroupRect();
       } else if (
         event.target.parent instanceof LogikEditorNode &&
         !(event.target.parent.parent instanceof LogikInvisibleDragGroup)
@@ -620,7 +636,7 @@ export class LogikEditor {
     });
 
     this.stage.on('mouseup', (event) => {
-      if (event.evt.button === 2) {
+      if (event.evt.button === 2 || event.evt.button === 1) {
         return;
       }
 
@@ -656,7 +672,7 @@ export class LogikEditor {
 
       /** TODO: Sometimes breaks when mouse is outside of browser window */
       if (this.groupRect) {
-        const nodes = this.findNodesInsideGroupRect(event.evt.x, event.evt.y);
+        const nodes = this.findNodesInsideGroupRect(this.mouseX, this.mouseY);
         this.dndHandler.draggedNodes = nodes;
 
         this.groupRect?.destroy();
@@ -664,23 +680,75 @@ export class LogikEditor {
       }
     });
 
-    this.stage.on('mousemove', (event) => {
+    this.stage.on('mousemove', () => {
+      const position = this.stage.getRelativePointerPosition();
+      if (position) {
+        this.mouseX = position.x;
+        this.mouseY = position.y;
+      }
+
       if (this.groupRect) {
-        this.groupRect.width(-(this.groupRect.x() - event.evt.x));
-        this.groupRect.height(-(this.groupRect.y() - event.evt.y));
+        const points = this.groupRect.points();
+        const [x, y] = points;
+        points[2] = this.mouseX;
+        points[3] = y;
+        points[4] = this.mouseX;
+        points[5] = this.mouseY;
+        points[6] = x;
+        points[7] = this.mouseY;
+        points[8] = x;
+        points[9] = y;
+        this.groupRect.points(points);
         return;
       }
 
       const line = this.dndHandler.draggedLine;
 
       if (line) {
+        const scale = this.stage.scaleX();
+        const position = line.origin.getAbsolutePosition();
         line.points([
-          line.origin.getAbsolutePosition().x,
-          line.origin.getAbsolutePosition().y,
-          event.evt.x,
-          event.evt.y,
+          (position.x - this.stage.x()) / scale,
+          (position.y - this.stage.y()) / scale,
+          this.mouseX,
+          this.mouseY,
         ]);
       }
+    });
+
+    const scaleBy = 1.05;
+    this.stage.on('wheel', (e) => {
+      // stop default scrolling
+      e.evt.preventDefault();
+
+      const oldScale = this.stage.scaleX();
+      const pointer = this.stage.getPointerPosition();
+
+      if (!pointer) return;
+
+      const mousePointTo = {
+        x: (pointer.x - this.stage.x()) / oldScale,
+        y: (pointer.y - this.stage.y()) / oldScale,
+      };
+
+      // how to scale? Zoom in? Or zoom out?
+      let direction = e.evt.deltaY > 0 ? 1 : -1;
+
+      // when we zoom on trackpad, e.evt.ctrlKey is true
+      // in that case lets revert direction
+      if (e.evt.ctrlKey) {
+        direction = -direction;
+      }
+
+      const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+
+      this.stage.scale({ x: newScale, y: newScale });
+
+      const newPos = {
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
+      };
+      this.stage.position(newPos);
     });
   }
 
@@ -712,12 +780,10 @@ export class LogikEditor {
     return result;
   }
 
-  private drawGroupRect(startX: number, startY: number): void {
-    this.groupRect = new Konva.Rect();
+  private drawGroupRect(): void {
+    this.groupRect = new Konva.Line({ points: [this.mouseX, this.mouseY] });
     this.groupRect.stroke('black');
     this.groupRect.strokeWidth(2);
-    this.groupRect.x(startX);
-    this.groupRect.y(startY);
     this.layer.add(this.groupRect);
   }
 
