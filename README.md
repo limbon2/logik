@@ -31,7 +31,7 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] User input handling
 - [x] Text Input
 - [x] Zoom in/zoom out
-- [] Refactor
+- [x] Basic refactor
 - [] Styling
 - [] Serializable groups, comments
 - [] Search input for context menu
