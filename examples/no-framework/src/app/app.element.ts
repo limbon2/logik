@@ -56,12 +56,18 @@ class ToUpperCaseNode extends LogikNode {
   }
 }
 
-const button = document.createElement('button');
-button.textContent = 'Run';
-document.body.appendChild(button);
-
-button.addEventListener('click', () => {
+const runButton = document.createElement('button');
+runButton.textContent = 'Run';
+document.body.appendChild(runButton);
+runButton.addEventListener('click', () => {
   graph.run();
+});
+
+const serializeButton = document.createElement('button');
+serializeButton.textContent = 'Save';
+document.body.appendChild(serializeButton);
+serializeButton.addEventListener('click', () => {
+  editor.deserialize(editor.serialize());
 });
 
 const registry = new LogikNodeRegistry();

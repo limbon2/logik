@@ -48,7 +48,15 @@ export class LogikEditorSocketInput extends Konva.Group {
 
   /** Update value of the socket */
   private setSocketProperty(): void {
-    this.socket.model.parent.properties[this.socket.model.property] = this.text.text();
+    const props = this.socket.model.parent.properties;
+    const property = this.socket.model.property;
+    const value = props[property];
+
+    if (value && typeof value === 'string') {
+      this.text.text(value);
+    }
+
+    props[property] = this.text.text();
   }
 
   /** Initialize the input and add it document body in place of parent socket location */

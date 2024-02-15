@@ -19,11 +19,13 @@ export class LogikSocket {
   ) {}
 
   public serialize(): ISerializedLogikSocket {
+    const type = this.type.charAt(0).toUpperCase() + this.type.slice(1, this.type.length);
+
     return {
       id: this.id,
       property: this.property,
       name: this.name,
-      type: this.type,
+      type,
       parentId: this.parent.uuid,
       editable: this.editable,
       isInput: this.isInput ?? false,

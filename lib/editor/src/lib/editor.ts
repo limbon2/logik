@@ -365,7 +365,7 @@ export class LogikEditor {
   }
 
   public deserialize(data: ISerializedLogikEditor): void {
-    this.layer.clear();
+    this.layer.destroyChildren();
     this.graph.deserialize(data.graph);
 
     const children = this.layer.getChildren((child) => child instanceof LogikEditorNode) as LogikEditorNode[];
