@@ -31,13 +31,13 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] User input handling
 - [x] Text Input
 - [x] Zoom in/zoom out
+- [] Refactor
+- [] Styling
+- [] Serializable groups, comments
+- [] Search input for context menu
 - [] Number Input
 - [] Select Input
-- [] Search input for context menu
 - [] Multiple or single connections to sockets
 - [] Node config panel
 - [] Variables
-- [] Serializable groups, comments
-- [] Styling
-- [] Refactor
 - [] Socket rerouting
