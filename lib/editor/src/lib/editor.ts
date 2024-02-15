@@ -73,6 +73,8 @@ export class LogikEditorDnDHandler {
     this._draggedLine.next(value);
   }
   public readonly draggedLine$: Observable<LogikEditorSocketLine | null> = this._draggedLine.asObservable();
+
+  public focusedInput: LogikEditorSocketInput | null = null;
 }
 
 /** A visual representation of two connected sockets */
@@ -111,6 +113,10 @@ export class LogikEditorSocketLine extends Konva.Line {
     this.target$.subscribe((target) => {
       if (target) {
         target.parent?.on('dragmove', this.updatePoints.bind(this));
+        const input = target.innerGroup.getChildren((child) => child instanceof LogikEditorSocketInput)[0];
+        if (input) {
+          input.destroy();
+        }
       }
     });
 
@@ -128,6 +134,7 @@ export class LogikEditorSocketLine extends Konva.Line {
         event.evt.preventDefault();
         event.evt.stopPropagation();
         if (connection) {
+          this.target?.createInputIfNeeded();
           connection.graph.disconnectSockets(connection);
         }
       }
@@ -147,6 +154,110 @@ export class LogikEditorSocketLine extends Konva.Line {
   }
 }
 
+/** And input class for sockets. Used to modify certain properties of a node while editing graph */
+export class LogikEditorSocketInput extends Konva.Group {
+  private readonly text = new Konva.Text({ text: 'Text', fontSize: 11 });
+  private readonly background = new Konva.Rect({ stroke: 'black', strokeWidth: 1 });
+
+  /** An input element that is used to extract text from */
+  private input: HTMLTextAreaElement;
+
+  constructor(private readonly socket: LogikEditorSocket, private readonly dndHandler: LogikEditorDnDHandler) {
+    super();
+
+    this.background.height(18);
+    this.y(8);
+
+    this.updateSelfWidth();
+
+    this.text.x(4);
+    this.text.y(this.background.height() / 2 - this.text.height() / 2);
+
+    this.add(this.background, this.text);
+
+    this.on('mousedown', (event) => {
+      event.cancelBubble = true;
+      this.dndHandler.focusedInput = this;
+
+      this.initInput();
+    });
+
+    this.socket.model.parent.properties[this.socket.model.property] = this.text.text();
+
+    setTimeout(() => {
+      const node = this.parent?.parent?.parent as LogikEditorNode;
+      if (node) {
+        node.updateHeight();
+      }
+    });
+  }
+
+  /** Initialize the input and add it document body in place of parent socket location */
+  private initInput(): void {
+    this.input = document.createElement('textarea');
+
+    this.input.style.position = 'absolute';
+    this.input.style.fontSize = `${11}px`;
+    this.input.style.padding = '2px 0px 0px 4px';
+    this.input.style.resize = 'none';
+    this.input.style.outline = '0';
+    this.input.style.border = '0';
+    this.input.style.overflowY = 'hidden';
+    this.input.style.fontFamily = this.text.fontFamily();
+
+    this.input.value = this.text.text();
+
+    this.updateInputRect();
+
+    this.input.addEventListener('input', (event) => {
+      this.text.text((event.target as HTMLTextAreaElement).value);
+      this.updateSelfWidth();
+      this.updateInputRect();
+    });
+
+    this.input.addEventListener('blur', () => {
+      this.socket.model.parent.properties[this.socket.model.property] = this.input.value;
+      document.body.removeChild(this.input);
+    });
+
+    document.body.append(this.input);
+
+    setTimeout(() => {
+      this.input.focus();
+    });
+  }
+
+  /** Update width of the input depending whether parent input is input or output */
+  private updateSelfWidth(): void {
+    const minWidth = 32;
+    const width = this.text.width() + 8;
+    this.background.width(width < minWidth ? minWidth : width);
+    /** If socket is not input then updating width should happen towards left side */
+    if (!this.socket.model.isInput) {
+      this.x(this.socket.socketName.x() + this.socket.socketName.width() - this.background.width());
+    } else {
+      /** Otherwise we don't move x position and stay in place of socket name  */
+      this.x(this.socket.socketName.x());
+    }
+  }
+
+  private updateInputRect(): void {
+    this.input.style.left = `${this.getAbsolutePosition().x}px`;
+    this.input.style.top = `${this.getAbsolutePosition().y}px`;
+    this.input.style.width = `${this.background.width()}px`;
+    this.input.style.height = `${this.background.height()}px`;
+  }
+
+  public override destroy(): this {
+    const node = this.parent?.parent?.parent as LogikEditorNode;
+    super.destroy();
+    if (node) {
+      node.updateHeight();
+    }
+    return this;
+  }
+}
+
 /** A socket represented in the editor */
 export class LogikEditorSocket extends Konva.Group {
   private _isValid: boolean = true;
@@ -162,25 +273,35 @@ export class LogikEditorSocket extends Konva.Group {
     }
   }
 
-  private background: Konva.Shape;
+  public background: Konva.Shape;
+  public socketName: Konva.Text;
 
-  constructor(public readonly model: LogikSocket, isInput: boolean, dndHandler: LogikEditorDnDHandler) {
+  public readonly innerGroup: Konva.Group = new Konva.Group();
+
+  constructor(
+    public readonly model: LogikSocket,
+    isInput: boolean,
+    private readonly dndHandler: LogikEditorDnDHandler
+  ) {
     super();
 
     this.setBackground();
 
-    const name = new Konva.Text({ y: -5, text: model.name, fill: 'black' });
+    this.socketName = new Konva.Text({ y: -5, text: model.name, fill: 'black' });
 
     if (isInput) {
-      name.x(this.background.x() + this.background.width());
-      this.add(this.background, name);
+      this.socketName.x(this.background.x() + this.background.width());
+      this.innerGroup.add(this.background, this.socketName);
     } else {
-      name.x(this.background.x() - this.background.width() - name.width());
-      this.add(name, this.background);
+      this.socketName.x(this.background.x() - this.background.width() - this.socketName.width());
+      this.innerGroup.add(this.socketName, this.background);
     }
 
+    this.createInputIfNeeded();
+    this.add(this.innerGroup);
+
     /** On socket click */
-    this.on('mousedown', (event) => {
+    this.background.on('mousedown', (event) => {
       /** Prevent upper events from being handled */
       event.cancelBubble = true;
       /** Create a temporary line that follows mouse cursor */
@@ -191,22 +312,37 @@ export class LogikEditorSocket extends Konva.Group {
       dndHandler.draggedLine = line;
     });
 
-    this.on('mouseup', () => {
-      if (dndHandler.draggedLine && dndHandler.draggedLine.origin !== this) {
-        dndHandler.draggedLine.target = this;
+    this.background.on('mouseup', () => {
+      if (this.dndHandler.draggedLine && this.dndHandler.draggedLine.origin !== this) {
+        this.dndHandler.draggedLine.target = this;
       }
     });
 
-    this.on('mouseenter', () => {
+    this.background.on('mouseenter', () => {
       if (this.isValid) {
         this.background.fill('red');
       }
     });
-    this.on('mouseleave', () => {
+    this.background.on('mouseleave', () => {
       if (this.isValid) {
         this.background.fill('white');
       }
     });
+  }
+
+  public createInputIfNeeded(): void {
+    if (this.model.editable) {
+      switch (this.model.type) {
+        case LogikSocketType.Text: {
+          this.innerGroup.add(new LogikEditorSocketInput(this, this.dndHandler));
+          break;
+        }
+
+        default: {
+          break;
+        }
+      }
+    }
   }
 
   private setBackground(): void {
@@ -241,6 +377,9 @@ export class LogikEditorNode extends Konva.Group {
   private readonly socketGap: number = 16;
   private background: Konva.Rect;
 
+  private readonly inputs: LogikEditorSocket[] = [];
+  private readonly outputs: LogikEditorSocket[] = [];
+
   constructor(public readonly model: LogikNode, dndHandler: LogikEditorDnDHandler) {
     super();
     this.draggable(true);
@@ -249,15 +388,13 @@ export class LogikEditorNode extends Konva.Group {
     const name = new LogikEditorNodeName(model);
     this.add(this.background, name);
 
-    const maxIoLength = Math.max(this.model.inputs.length, this.model.outputs.length);
-    this.background.height(40 + this.socketGap * maxIoLength);
-
     for (let i = 0; i < this.model.outputs.length; i++) {
       const output = this.model.outputs[i];
       const socket = new LogikEditorSocket(output, false, dndHandler);
       socket.x(this.background.width() - socket.width() / 2 - 16);
       socket.y(24 + 16 + i * this.socketGap);
       this.add(socket);
+      this.outputs.push(socket);
     }
 
     for (let i = 0; i < this.model.inputs.length; i++) {
@@ -266,10 +403,10 @@ export class LogikEditorNode extends Konva.Group {
       socket.x(socket.width() / 2 + 16);
       socket.y(24 + 16 + i * this.socketGap);
       this.add(socket);
+      this.inputs.push(socket);
     }
 
-    this.width(this.background.width());
-    this.height(this.background.height());
+    this.updateHeight();
   }
 
   public isSelected(value: boolean): void {
@@ -278,6 +415,16 @@ export class LogikEditorNode extends Konva.Group {
     } else {
       this.background.stroke('black');
     }
+  }
+
+  public updateHeight(): void {
+    const inputsHeight = this.inputs.reduce((prev, curr) => prev + curr.getClientRect().height, 0);
+    const outputsHeight = this.outputs.reduce((prev, curr) => prev + curr.getClientRect().height, 0);
+    const totalSocketsHeight = Math.max(inputsHeight, outputsHeight);
+    this.background.height(40 + totalSocketsHeight + 4);
+
+    this.width(this.background.width());
+    this.height(this.background.height());
   }
 }
 

@@ -8,7 +8,7 @@ class BeginNode extends LogikNode {
     super('Begin');
     this.isRoot = true;
 
-    this.addOutput('', LogikSocketType.Produce);
+    this.addOutput(LogikSocketType.Produce, '', null);
   }
 
   public override run(): void {
@@ -20,10 +20,10 @@ class LogNode extends LogikNode {
   constructor() {
     super('Log');
 
-    this.addInput('', LogikSocketType.Consume);
-    this.addInput('Value', LogikSocketType.Text);
+    this.addInput(LogikSocketType.Consume, null, '');
+    this.addInput(LogikSocketType.Text, 'value', 'Value');
 
-    this.addOutput('', LogikSocketType.Produce);
+    this.addOutput(LogikSocketType.Produce, null, '');
   }
 
   public override run(): void {
@@ -35,24 +35,24 @@ class MakeTextNode extends LogikNode {
   constructor() {
     super('Make Text');
 
-    this.addOutput('Value', LogikSocketType.Text);
+    this.addOutput(LogikSocketType.Text, 'value', 'Value');
   }
 
   public override run(): void {
-    this.setOutputProperty(0, 'value', 'Hello, World!');
+    this.setOutputProperty(0, this.properties['value']);
   }
 }
 
 class ToUpperCaseNode extends LogikNode {
   constructor() {
     super('To Upper Case');
-    this.addInput('Input', LogikSocketType.Text);
-    this.addOutput('Output', LogikSocketType.Text);
+    this.addInput(LogikSocketType.Text, 'value', 'Input', false);
+    this.addOutput(LogikSocketType.Text, 'value', 'Output', false);
   }
 
   public override run(): void {
-    const text = this.getInputProperty(0, 'value');
-    this.setOutputProperty(0, 'value', text.toUpperCase());
+    const text = this.getInputProperty(0);
+    this.setOutputProperty(0, text.toUpperCase());
   }
 }
 

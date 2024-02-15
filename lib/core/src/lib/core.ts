@@ -17,6 +17,9 @@ export interface ISerializedLogikSocket {
   name: string;
   type: string;
   parentId: string;
+  property: string;
+  editable: boolean;
+  isInput?: boolean;
 }
 
 export interface ISerializedLogikConnection {
@@ -112,11 +115,13 @@ export class LogikConnection {
 export class LogikSocket {
   public id: string = uuid();
   /** The connection of the socket. Assigned during connection initialization therefore cannot be accessed before */
-  public connection: LogikConnection;
+  public connection: LogikConnection | null = null;
 
   constructor(
     public type: LogikSocketType,
+    public property: string,
     public name: string,
+    public editable: boolean = true,
     public parent: LogikNode,
     public readonly isInput?: boolean
   ) {}
@@ -124,9 +129,12 @@ export class LogikSocket {
   public serialize(): ISerializedLogikSocket {
     return {
       id: this.id,
+      property: this.property,
       name: this.name,
       type: this.type,
       parentId: this.parent.uuid,
+      editable: this.editable,
+      isInput: this.isInput ?? false,
     };
   }
 }
@@ -141,33 +149,33 @@ export abstract class LogikNode {
 
   constructor(public name: string) {}
 
-  public addInput(name: string, type: LogikSocketType): void {
-    this.inputs.push(new LogikSocket(type, name, this, true));
+  public addInput(type: LogikSocketType, property: string, name: string, editable?: boolean): void {
+    this.inputs.push(new LogikSocket(type, property, name, editable, this, true));
   }
 
-  public addOutput(name: string, type: LogikSocketType): void {
-    this.outputs.push(new LogikSocket(type, name, this));
+  public addOutput(type: LogikSocketType, property: string, name: string, editable?: boolean): void {
+    this.outputs.push(new LogikSocket(type, property, name, editable, this));
   }
 
   /** Get property value at input index */
-  protected getInputProperty(index: number, property: string): any {
+  protected getInputProperty(index: number): any {
     const socket = this.inputs[index];
     if (!socket)
       throw new Error(
-        `[ERROR]: Failed to get property ${property} of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in inputs`
+        `[ERROR]: Failed to get property of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in inputs`
       );
-    return socket.connection.input.parent.properties[property];
+    return socket.connection?.input.parent.properties[socket.property];
   }
 
   /** Assign a value to a particular property in an output socket */
-  protected setOutputProperty(index: number, property: string, value: any): void {
+  protected setOutputProperty(index: number, value: any): void {
     const socket = this.outputs[index];
     if (!socket)
       throw new Error(
-        `[ERROR]: Failed to assign property ${property} of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in outputs`
+        `[ERROR]: Failed to assign property of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in outputs`
       );
     if (socket.connection) {
-      socket.connection.input.parent.properties[property] = value;
+      socket.connection.input.parent.properties[socket.property] = value;
     }
   }
 
@@ -297,17 +305,9 @@ export class LogikGraph {
 
   /** Disconnect socket connection */
   public disconnectSockets(connection: LogikConnection): void {
-    /** Find id of the edge that the connection is associated with */
-    const connectionId = this.graph.edges().find((edge) => this.graph.getEdgeAttributes(edge) === connection);
-    /** If connection is not present, throw an error */
-    if (!connectionId) {
-      throw new Error(
-        `[ERROR]: Failed to disconnection connection - ${connectionId}. Connection was not found in the graph`
-      );
-    }
-
-    /** Remove the connection */
-    this.graph.dropEdge(connectionId);
+    this.graph.dropDirectedEdge(connection.output.id, connection.input.id);
+    connection.output.connection = null;
+    connection.input.connection = null;
     this.bus.emit('socket-disconnect', connection);
   }
 
@@ -329,12 +329,12 @@ export class LogikGraph {
     const makeTree = (item: LogikNode): any => {
       const next = item.outputs
         .filter((output) => output.connection)
-        .filter((output) => !visited.has(output.connection.input.parent))
-        .map((output) => output.connection.input.parent);
+        .filter((output) => !visited.has(output.connection!.input.parent))
+        .map((output) => output.connection!.input.parent);
       const dependencies = item.inputs
         .filter((input) => input.connection)
-        .filter((output) => !visited.has(output.connection.output.parent))
-        .map((input) => input.connection.output.parent);
+        .filter((output) => !visited.has(output.connection!.output.parent))
+        .map((input) => input.connection!.output.parent);
 
       visited.add(item);
 
@@ -391,7 +391,14 @@ export class LogikGraph {
         const serializedInput = data.sockets[inputId];
 
         const type = LogikSocketType[serializedInput.type as keyof typeof LogikSocketType];
-        const input = new LogikSocket(type, serializedInput.name, instance);
+        const input = new LogikSocket(
+          type,
+          serializedInput.property,
+          serializedInput.name,
+          serializedInput.editable,
+          instance,
+          true
+        );
         input.id = serializedInput.id;
         input.name = serializedInput.name;
 
@@ -402,7 +409,13 @@ export class LogikGraph {
         const serializedOutput = data.sockets[outputId];
 
         const type = LogikSocketType[serializedOutput.type as keyof typeof LogikSocketType];
-        const output = new LogikSocket(type, serializedOutput.name, instance);
+        const output = new LogikSocket(
+          type,
+          serializedOutput.property,
+          serializedOutput.name,
+          serializedOutput.editable,
+          instance
+        );
         output.id = serializedOutput.id;
         output.name = serializedOutput.name;
 
