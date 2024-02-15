@@ -1,8 +1,7 @@
 import { DirectedGraph } from 'graphology';
 import { v4 as uuid } from 'uuid';
 import { Observable, Subject, filter } from 'rxjs';
-import { topologicalSort, topologicalGenerations } from 'graphology-dag';
-import { isEmpty, uniq } from 'lodash';
+import { uniq } from 'lodash';
 
 export interface ISerializedLogikNode {
   id: string;
@@ -111,7 +110,12 @@ export class LogikSocket {
   /** The connection of the socket. Assigned during connection initialization therefore cannot be accessed before */
   public connection: LogikConnection;
 
-  constructor(public type: LogikSocketType, public name: string, public parent: LogikNode) {}
+  constructor(
+    public type: LogikSocketType,
+    public name: string,
+    public parent: LogikNode,
+    public readonly isInput?: boolean
+  ) {}
 
   public serialize(): ISerializedLogikSocket {
     return {
@@ -126,11 +130,20 @@ export class LogikSocket {
 export abstract class LogikNode {
   public uuid: string = uuid();
   public properties: Record<string, unknown> = {};
-  public readonly inputs: LogikSocket[] = [];
-  public readonly outputs: LogikSocket[] = [];
   public isRoot: boolean = false;
 
+  public readonly inputs: LogikSocket[] = [];
+  public readonly outputs: LogikSocket[] = [];
+
   constructor(public name: string) {}
+
+  public addInput(name: string, type: LogikSocketType): void {
+    this.inputs.push(new LogikSocket(type, name, this, true));
+  }
+
+  public addOutput(name: string, type: LogikSocketType): void {
+    this.outputs.push(new LogikSocket(type, name, this));
+  }
 
   /** Get property value at input index */
   protected getInputProperty(index: number, property: string): any {
@@ -191,6 +204,13 @@ export class LogikGraph {
     this.bus.emit('node-add', node);
   }
 
+  /** Check that socket types are correct before connecting them */
+  public isSocketConnectionValid(socket1: LogikSocket, socket2: LogikSocket): boolean {
+    if (socket1.type === LogikSocketType.Produce) return socket2.type === LogikSocketType.Consume;
+    if (socket1.type === LogikSocketType.Consume) return socket2.type === LogikSocketType.Produce;
+    return socket1.type === socket2.type;
+  }
+
   public addNode(node: string | LogikNode): void {
     if (node instanceof LogikNode) {
       this.insertNode(node);
@@ -239,22 +259,40 @@ export class LogikGraph {
     this.bus.emit('node-removed', node);
   }
 
+  /** Create a connection between two sockets */
   public connectSockets(output: string, input: string, id?: string): void {
+    /** Find the corresponding sockets in the graph */
     const outputSocket = this.graph.getNodeAttributes(output) as LogikSocket;
     const inputSocket = this.graph.getNodeAttributes(input) as LogikSocket;
 
+    /** If either of sockets was not found. Then there is something wrong with the ids and throw an error */
     if (!inputSocket || !outputSocket)
       throw new Error(`[ERROR]: Could not find socket in the graph: ${output} or ${input}`);
 
-    const connection = new LogikConnection(outputSocket, inputSocket);
-    if (id) {
-      connection.id = id;
+    /** Validate socket connection */
+    if (this.isSocketConnectionValid(outputSocket, inputSocket)) {
+      let connection: LogikConnection;
+      /** Check if we connecting sockets from input to output */
+      if (outputSocket.isInput) {
+        /** Reverse if it is the case */
+        connection = new LogikConnection(inputSocket, outputSocket);
+      } else {
+        connection = new LogikConnection(outputSocket, inputSocket);
+      }
+
+      /** If we provided an explicit id. Used during deserialization */
+      if (id) {
+        connection.id = id;
+      }
+      /** Add the connection to the graph */
+      this.graph.addEdge(output, input, connection);
+      /** Emit event about sockets being connected */
+      this.bus.emit('socket-connect', connection);
     }
-    this.graph.addEdge(output, input, connection);
-    this.bus.emit('socket-connect', connection);
   }
 
   /** Run the current graph. Execute all nodes */
+  /** @TODO This might not work correctly */
   public run(): void {
     /** Find the graph root nodes */
     const roots = uniq(

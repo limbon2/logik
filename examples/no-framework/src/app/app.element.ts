@@ -1,6 +1,6 @@
 import './app.element.css';
 
-import { LogikEventBus, LogikGraph, LogikNode, LogikNodeRegistry, LogikSocket, LogikSocketType } from '@logik/core';
+import { LogikEventBus, LogikGraph, LogikNode, LogikNodeRegistry, LogikSocketType } from '@logik/core';
 import { LogikEditor } from '@logik/editor';
 
 class BeginNode extends LogikNode {
@@ -8,7 +8,7 @@ class BeginNode extends LogikNode {
     super('Begin');
     this.isRoot = true;
 
-    this.outputs.push(new LogikSocket(LogikSocketType.Produce, '', this));
+    this.addOutput('', LogikSocketType.Produce);
   }
 
   public override run(): void {
@@ -20,9 +20,10 @@ class LogNode extends LogikNode {
   constructor() {
     super('Log');
 
-    this.inputs.push(new LogikSocket(LogikSocketType.Consume, '', this));
-    this.inputs.push(new LogikSocket(LogikSocketType.Text, 'Value', this));
-    this.outputs.push(new LogikSocket(LogikSocketType.Produce, '', this));
+    this.addInput('', LogikSocketType.Consume);
+    this.addInput('Value', LogikSocketType.Text);
+
+    this.addOutput('', LogikSocketType.Produce);
   }
 
   public override run(): void {
@@ -34,7 +35,7 @@ class MakeTextNode extends LogikNode {
   constructor() {
     super('Make Text');
 
-    this.outputs.push(new LogikSocket(LogikSocketType.Text, 'Value', this));
+    this.addOutput('Value', LogikSocketType.Text);
   }
 
   public override run(): void {
@@ -45,8 +46,8 @@ class MakeTextNode extends LogikNode {
 class ToUpperCaseNode extends LogikNode {
   constructor() {
     super('To Upper Case');
-    this.inputs.push(new LogikSocket(LogikSocketType.Text, 'Input', this));
-    this.outputs.push(new LogikSocket(LogikSocketType.Text, 'Output', this));
+    this.addInput('Input', LogikSocketType.Text);
+    this.addOutput('Output', LogikSocketType.Text);
   }
 
   public override run(): void {

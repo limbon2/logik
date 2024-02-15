@@ -27,6 +27,7 @@ Visit the [Nx Documentation](https://nx.dev) to learn more.
 - [x] Root Node
 - [x] Running graphs
 - [] Socket connection validation
+- [] Multiple or single connections to sockets
 - [] Disconnecting sockets
 - [] User input handling
 - [] Text Input

@@ -1,4 +1,11 @@
-import { LogikSocket, LogikNode, LogikGraph, LogikConnection, ISerializedLogikGraph } from '@logik/core';
+import {
+  LogikSocket,
+  LogikNode,
+  LogikGraph,
+  LogikConnection,
+  ISerializedLogikGraph,
+  LogikSocketType,
+} from '@logik/core';
 import Konva from 'konva';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { difference } from 'lodash';
@@ -9,6 +16,41 @@ export interface ISerializedLogikEditor {
   graph: ISerializedLogikGraph;
 }
 
+/** A class for updating visuals of sockets if we cannot create connection between the two  */
+export class LogikEditorSocketVisualValidator {
+  constructor(
+    private readonly graph: LogikGraph,
+    private readonly layer: Konva.Layer,
+    private readonly dndHandler: LogikEditorDnDHandler
+  ) {
+    /** Subscribe to changes during line drag between sockets */
+    this.dndHandler.draggedLine$.subscribe((line) => {
+      /** Get all sockets */
+      /** @TODO This must be optimized otherwise this can be a bottleneck on large graphs */
+      const sockets = this.layer
+        .getChildren((child) => child instanceof LogikEditorNode)
+        .flatMap((node) =>
+          (node as LogikEditorNode).getChildren((child) => child instanceof LogikEditorSocket)
+        ) as LogikEditorSocket[];
+
+      /** If line is present */
+      if (line) {
+        for (const socket of sockets) {
+          /** Check if connection is valid */
+          if (!this.graph.isSocketConnectionValid(line.origin.model, socket.model)) {
+            socket.isValid = false;
+          } else {
+            socket.isValid = true;
+          }
+        }
+      } else {
+        sockets.forEach((socket) => (socket.isValid = true));
+      }
+    });
+  }
+}
+
+/** A handler class for holding and serving draggable object in the editor */
 export class LogikEditorDnDHandler {
   private _draggedNodes: BehaviorSubject<LogikEditorNode[]> = new BehaviorSubject<LogikEditorNode[]>([]);
   public get draggedNodes(): LogikEditorNode[] {
@@ -20,9 +62,17 @@ export class LogikEditorDnDHandler {
     value.forEach((node) => node.isSelected(true));
     this._draggedNodes.next(value);
   }
-  public draggedNodes$: Observable<LogikEditorNode[]> = this._draggedNodes.asObservable();
+  public readonly draggedNodes$: Observable<LogikEditorNode[]> = this._draggedNodes.asObservable();
 
-  public draggedLine: LogikEditorSocketLine | null = null;
+  private _draggedLine: BehaviorSubject<LogikEditorSocketLine | null> =
+    new BehaviorSubject<LogikEditorSocketLine | null>(null);
+  public get draggedLine(): LogikEditorSocketLine | null {
+    return this._draggedLine.getValue();
+  }
+  public set draggedLine(value: LogikEditorSocketLine | null) {
+    this._draggedLine.next(value);
+  }
+  public readonly draggedLine$: Observable<LogikEditorSocketLine | null> = this._draggedLine.asObservable();
 }
 
 export class LogikEditorSocketLine extends Konva.Line {
@@ -77,19 +127,36 @@ export class LogikEditorSocketLine extends Konva.Line {
   }
 }
 
+/** A socket represented in the editor */
 export class LogikEditorSocket extends Konva.Group {
+  private _isValid: boolean = true;
+  public get isValid(): boolean {
+    return this._isValid;
+  }
+  public set isValid(value: boolean) {
+    this._isValid = value;
+    if (!value) {
+      this.background.fill('gray');
+    } else {
+      this.background.fill('white');
+    }
+  }
+
+  private background: Konva.Shape;
+
   constructor(public readonly model: LogikSocket, isInput: boolean, dndHandler: LogikEditorDnDHandler) {
     super();
 
-    const shape = new Konva.Circle({ radius: 4, stroke: 'black' });
+    this.setBackground();
+
     const name = new Konva.Text({ y: -5, text: model.name, fill: 'black' });
 
     if (isInput) {
-      name.x(shape.x() + shape.radius() * 2);
-      this.add(shape, name);
+      name.x(this.background.x() + this.background.width());
+      this.add(this.background, name);
     } else {
-      name.x(shape.x() - shape.radius() * 2 - name.width());
-      this.add(name, shape);
+      name.x(this.background.x() - this.background.width() - name.width());
+      this.add(name, this.background);
     }
 
     /** On socket click */
@@ -110,8 +177,30 @@ export class LogikEditorSocket extends Konva.Group {
       }
     });
 
-    this.on('mouseenter', () => shape.fill('red'));
-    this.on('mouseleave', () => shape.fill('white'));
+    this.on('mouseenter', () => {
+      if (this.isValid) {
+        this.background.fill('red');
+      }
+    });
+    this.on('mouseleave', () => {
+      if (this.isValid) {
+        this.background.fill('white');
+      }
+    });
+  }
+
+  private setBackground(): void {
+    switch (this.model.type) {
+      case LogikSocketType.Produce:
+      case LogikSocketType.Consume: {
+        this.background = new Konva.RegularPolygon({ sides: 3, stroke: 'black', radius: 6, rotation: 90 });
+        break;
+      }
+
+      default: {
+        this.background = new Konva.Circle({ radius: 4, stroke: 'black', fill: 'white' });
+      }
+    }
   }
 }
 
@@ -248,6 +337,7 @@ export class LogikEditor {
   private readonly layer: Konva.Layer;
 
   private readonly dndHandler: LogikEditorDnDHandler = new LogikEditorDnDHandler();
+  private readonly visualValidator: LogikEditorSocketVisualValidator;
 
   /** Rectangle which is used to select a group of nodes */
   private groupRect: Konva.Rect | null = null;
@@ -261,6 +351,8 @@ export class LogikEditor {
 
     this.layer = new Konva.Layer();
     this.layer.add(this.invisibleGroup);
+
+    this.visualValidator = new LogikEditorSocketVisualValidator(this.graph, this.layer, this.dndHandler);
 
     this.graph.onNodeAdded$.subscribe((event) => {
       const node = new LogikEditorNode(event.data, this.dndHandler);
