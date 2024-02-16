@@ -28,7 +28,7 @@ export abstract class LogikNode {
       throw new Error(
         `[ERROR]: Failed to get property of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in inputs`
       );
-    return socket.connection?.input.parent.properties[socket.property];
+    return socket.parent.properties[socket.property];
   }
 
   /** Assign a value to a particular property in an output socket */

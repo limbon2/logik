@@ -5,13 +5,13 @@
   "projectType": "library",
   "targets": {
     "build": {
-      "executor": "@nx/js:tsc",
+      "executor": "@nx/rollup:rollup",
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/lib/editor",
         "main": "lib/editor/src/index.ts",
         "tsConfig": "lib/editor/tsconfig.lib.json",
-        "assets": []
+        "assets": ["lib/editor/src/lib/nodes-context-menu/nodes-context-menu.css"]
       }
     },
     "publish": {

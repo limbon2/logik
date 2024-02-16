@@ -27,7 +27,8 @@ class LogNode extends LogikNode {
   }
 
   public override run(): void {
-    console.log(this.properties['value']);
+    const value = this.getInputProperty(1);
+    console.log(value);
   }
 }
 

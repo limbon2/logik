@@ -18,6 +18,7 @@ A visual editor project highly inspired by Unreal Engine blueprint editor. Prima
 - [x] Text Input
 - [x] Zoom in/zoom out
 - [x] Basic refactor
+- [ ] Fix bundling
 - [ ] Styling
 - [ ] Serializable groups, comments
 - [ ] Search input for context menu
