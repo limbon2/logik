@@ -3,6 +3,7 @@ import Konva from 'konva';
 import { BehaviorSubject } from 'rxjs';
 import { LogikEditorSocket } from './editor-socket';
 import { LogikEditorSocketInput } from './editor-socket-input';
+import { LogikEditorNode } from './editor-node';
 
 /** A visual representation of two connected sockets */
 export class LogikEditorSocketLine extends Konva.Line {
@@ -69,6 +70,8 @@ export class LogikEditorSocketLine extends Konva.Line {
         if (connection) {
           /** Then recreate its inputs if any is required */
           this.target?.createInputIfNeeded();
+          /** Update height of the node because socket inputs could have been recreated */
+          (this.target?.parent as LogikEditorNode).updateHeight();
           /** Disconnect sockets */
           connection.graph.disconnectSockets(connection);
         }

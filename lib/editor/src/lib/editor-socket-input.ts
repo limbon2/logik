@@ -36,27 +36,17 @@ export class LogikEditorSocketInput extends Konva.Group {
 
     /** Set initial value to the socket node */
     this.setSocketProperty();
-
-    /** Update node height on init */
-    setTimeout(() => {
-      const node = this.parent?.parent?.parent as LogikEditorNode;
-      if (node) {
-        node.updateHeight();
-      }
-    });
   }
 
   /** Update value of the socket */
   private setSocketProperty(): void {
-    const props = this.socket.model.parent.properties;
-    const property = this.socket.model.property;
-    const value = props[property];
+    const value = this.socket.model.value;
 
     if (value && typeof value === 'string') {
       this.text.text(value);
     }
 
-    props[property] = this.text.text();
+    this.socket.model.value = this.text.text();
   }
 
   /** Initialize the input and add it document body in place of parent socket location */
@@ -83,7 +73,7 @@ export class LogikEditorSocketInput extends Konva.Group {
     });
 
     this.input.addEventListener('blur', () => {
-      this.socket.model.parent.properties[this.socket.model.property] = this.input.value;
+      this.socket.model.value = this.text.text();
       document.body.removeChild(this.input);
     });
 

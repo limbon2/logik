@@ -7,13 +7,13 @@ import { LogikEditorSelectionHandler } from './editor-selection-handler';
 export class LogikEditorNodeName extends Konva.Group {
   constructor(public readonly model: LogikNode) {
     super();
-    const x = 1;
-    const y = 1;
-    const background = new Konva.Rect({ x, y, width: 200 - x, height: 24 - y, fill: '#dd0000' });
+    const background = new Konva.Rect({ y: 0, width: 200, height: 24, fill: '#dd0000' });
 
-    const name = new Konva.Text({ x: 100, y: 12 + y, fontSize: 16, text: model.name, fill: 'white' });
+    const name = new Konva.Text({ x: 100, y: 12, fontSize: 16, text: model.name, fill: 'white' });
     name.offsetX(name.width() / 2);
     name.offsetY(name.height() / 2);
+
+    this.height(background.height());
 
     this.add(background, name);
   }
@@ -21,8 +21,9 @@ export class LogikEditorNodeName extends Konva.Group {
 
 /** The visual representation of the node present in the editor */
 export class LogikEditorNode extends Konva.Group {
-  private readonly socketGap: number = 16;
+  private readonly socketGap: number = 4;
   private background: Konva.Rect;
+  private nodeName: LogikEditorNodeName;
 
   private readonly inputs: LogikEditorSocket[] = [];
   private readonly outputs: LogikEditorSocket[] = [];
@@ -32,9 +33,8 @@ export class LogikEditorNode extends Konva.Group {
     this.draggable(true);
 
     this.background = new Konva.Rect({ stroke: 'black', x: this.x(), y: this.y(), width: 200 });
-    const name = new LogikEditorNodeName(model);
-    this.add(this.background, name);
-    this.width(this.background.width());
+    this.nodeName = new LogikEditorNodeName(model);
+    this.add(this.nodeName, this.background);
 
     this.setInputsOutputs();
     this.updateHeight();
@@ -48,27 +48,46 @@ export class LogikEditorNode extends Konva.Group {
   private setInputsOutputs(): void {
     for (let i = 0; i < this.model.outputs.length; i++) {
       const output = this.model.outputs[i];
-
       const socket = new LogikEditorSocket(output, false, this.selectionHandler);
-
-      /** If socket is an output then place it to the right side of the node */
-      const padding = 16;
-      const x = this.background.width() - socket.width() / 2 - padding;
-      socket.x(x);
-      socket.y(24 + 16 + i * this.socketGap);
 
       this.add(socket);
       this.outputs.push(socket);
     }
 
-    /** If socket is an input then place it to the left side of the node */
     for (let i = 0; i < this.model.inputs.length; i++) {
       const input = this.model.inputs[i];
       const socket = new LogikEditorSocket(input, true, this.selectionHandler);
-      socket.x(socket.width() / 2 + 16);
-      socket.y(24 + 16 + i * this.socketGap);
       this.add(socket);
       this.inputs.push(socket);
+    }
+
+    this.updateSocketsPosition();
+  }
+
+  /**
+   * Update socket locations.
+   * Used mainly to update the node height after a socket connection since it may remove socket input fields
+   */
+  private updateSocketsPosition(): void {
+    const padding = 16;
+    const nodeNameHeight = this.nodeName.getClientRect().height;
+
+    let inputY = nodeNameHeight + padding;
+    for (const socket of this.inputs) {
+      /** Output sockets are place to the left of the node */
+      const x = socket.width() / 2 + padding;
+      socket.x(x);
+      socket.y(inputY);
+      inputY += socket.getClientRect().height + this.socketGap;
+    }
+
+    let outputY = nodeNameHeight + padding;
+    for (const socket of this.outputs) {
+      /** Output sockets are place to the right of the node */
+      const x = this.background.width() - socket.width() / 2 - padding;
+      socket.x(x);
+      socket.y(outputY);
+      outputY += socket.getClientRect().height + this.socketGap;
     }
   }
 
@@ -83,10 +102,25 @@ export class LogikEditorNode extends Konva.Group {
 
   /** Update the height of the node. Because it is a dynamic value depending on sockets and its input elements */
   public updateHeight(): void {
-    const inputsHeight = this.inputs.reduce((prev, curr) => prev + curr.getClientRect().height, 0);
-    const outputsHeight = this.outputs.reduce((prev, curr) => prev + curr.getClientRect().height, 0);
-    const totalSocketsHeight = Math.max(inputsHeight, outputsHeight);
-    this.background.height(40 + totalSocketsHeight + 4);
+    /** Update socket position before calculating new height */
+    this.updateSocketsPosition();
+
+    const nameHeight = this.nodeName.height();
+
+    /** Find overall height of sockets in inputs and outputs */
+    const inputSocketHeight = this.inputs.reduce(
+      (curr, input) => curr + input.getClientRect().height + this.socketGap,
+      0
+    );
+    const outputSocketHeight = this.outputs.reduce(
+      (curr, output) => curr + output.getClientRect().height + this.socketGap,
+      0
+    );
+
+    /** Get the highest height to determine the whole height of the node */
+    const socketHeight = Math.max(inputSocketHeight, outputSocketHeight);
+
+    this.background.height(nameHeight + 16 + socketHeight);
     this.height(this.background.height());
   }
 }
