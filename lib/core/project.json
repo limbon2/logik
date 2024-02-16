@@ -5,13 +5,17 @@
   "projectType": "library",
   "targets": {
     "build": {
-      "executor": "@nx/js:tsc",
+      "executor": "@nx/rollup:rollup",
       "outputs": ["{options.outputPath}"],
       "options": {
+        "project": "lib/core/package.json",
         "outputPath": "dist/lib/core",
         "main": "lib/core/src/index.ts",
         "tsConfig": "lib/core/tsconfig.lib.json",
-        "assets": []
+        "assets": [],
+        "compiler": "babel",
+        "format": ["esm"],
+        "extractCss": true
       }
     },
     "publish": {

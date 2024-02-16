@@ -8,10 +8,14 @@
       "executor": "@nx/rollup:rollup",
       "outputs": ["{options.outputPath}"],
       "options": {
+        "project": "lib/editor/package.json",
         "outputPath": "dist/lib/editor",
         "main": "lib/editor/src/index.ts",
         "tsConfig": "lib/editor/tsconfig.lib.json",
-        "assets": ["lib/editor/src/lib/nodes-context-menu/nodes-context-menu.css"]
+        "assets": [],
+        "compiler": "babel",
+        "format": ["esm"],
+        "extractCss": true
       }
     },
     "publish": {
