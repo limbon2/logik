@@ -85,7 +85,7 @@ export class LogikEditor {
         /** If line has a connection that equals the connection emitted from the event */
         if (line.connection === event.data) {
           /** Remove it */
-          line.remove();
+          line.destroy();
         }
       }
     });
@@ -196,26 +196,25 @@ export class LogikEditor {
         this.invisibleGroup.clear();
       }
 
+      const line = this.selectionHandler.selectedLine;
       /** If we drag a line from a socket but we haven't connected it to anything */
-      if (this.selectionHandler.selectedLine && !this.selectionHandler.selectedLine.target) {
+      if (line && !line.target) {
         /** Remove the line */
-        this.selectionHandler.selectedLine.destroy();
+        line.destroy();
         this.selectionHandler.selectedLine = null;
       }
 
       /** If we drag a line from a socket and also has just connected it to other socket*/
-      if (this.selectionHandler.selectedLine && this.selectionHandler.selectedLine.target) {
-        /** Connected the sockets in the graph, the rest happens after onSocketConnect emits */
-        this.graph.connectSockets(
-          this.selectionHandler.selectedLine.origin.model.id,
-          this.selectionHandler.selectedLine.target.model.id
-        );
+      if (line && line.target) {
         /**
          * We still destroy the line because there will be a new one created after onSocketConnect event
          * @TODO Maybe we can reuse the line and not create another one?
          */
-        this.selectionHandler.selectedLine.destroy();
+        line.destroy();
         this.selectionHandler.selectedLine = null;
+
+        /** Connected the sockets in the graph, the rest happens after onSocketConnect emits */
+        this.graph.connectSockets(line.origin.model.id, line.target.model.id);
       }
 
       /** @TODO Sometimes breaks when mouse is outside of browser window */

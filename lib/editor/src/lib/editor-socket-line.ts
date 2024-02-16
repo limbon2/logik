@@ -69,14 +69,23 @@ export class LogikEditorSocketLine extends Konva.Line {
         /** If the socket had any connections */
         if (connection) {
           /** Then recreate its inputs if any is required */
-          this.target?.createInputIfNeeded();
-          /** Update height of the node because socket inputs could have been recreated */
-          (this.target?.parent as LogikEditorNode).updateHeight();
+          /** And update height of the node because socket inputs could have been recreated */
+          this.updateConnectedSocketNodeHeight();
           /** Disconnect sockets */
           connection.graph.disconnectSockets(connection);
         }
       }
     });
+  }
+
+  /** Update socket parent node height. Used after connection removal */
+  private updateConnectedSocketNodeHeight(): void {
+    if (this.target) {
+      /** Recreate its inputs if any is required */
+      this.target?.createInputIfNeeded();
+      /** Update height of the node because socket inputs could have been recreated */
+      (this.target?.parent as LogikEditorNode)?.updateHeight();
+    }
   }
 
   /** Update the line position and direction */
@@ -94,5 +103,10 @@ export class LogikEditorSocketLine extends Konva.Line {
       /** Set direction towards new provided points. Currently comes from the editor mouse move event */
       this.points([x, y, points[2], points[3]]);
     }
+  }
+
+  public override destroy(): this {
+    this.updateConnectedSocketNodeHeight();
+    return super.destroy();
   }
 }

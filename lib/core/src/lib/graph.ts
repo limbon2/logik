@@ -20,7 +20,7 @@ export class LogikGraph {
   public readonly onSocketConnect$ = this.bus.on('socket-connect');
   public readonly onSocketDisconnect$ = this.bus.on('socket-disconnect');
 
-  constructor(public readonly registry: LogikNodeRegistry, private readonly bus: LogikEventBus) {}
+  constructor(public readonly registry: LogikNodeRegistry, public readonly bus: LogikEventBus) {}
 
   private insertNode(node: LogikNode): void {
     this.nodes.set(node.uuid, node);
@@ -122,8 +122,8 @@ export class LogikGraph {
   /** Disconnect socket connection */
   public disconnectSockets(connection: LogikConnection): void {
     this.graph.dropDirectedEdge(connection.output.id, connection.input.id);
-    connection.output.connection = null;
-    connection.input.connection = null;
+    connection.output.connections = connection.output.connections.filter((c) => c !== connection);
+    connection.input.connections = connection.input.connections.filter((c) => c !== connection);
     this.bus.emit('socket-disconnect', connection);
   }
 
@@ -144,13 +144,15 @@ export class LogikGraph {
     /** Construct a tree of node executions */
     const makeTree = (item: LogikNode): any => {
       const next = item.outputs
-        .filter((output) => output.connection)
-        .filter((output) => !visited.has(output.connection!.input.parent))
-        .map((output) => output.connection!.input.parent);
+        .filter((output) => output.connections.length)
+        .flatMap((output) => output.connections)
+        .filter((connection) => !visited.has(connection.input.parent))
+        .map((connection) => connection.input.parent);
       const dependencies = item.inputs
-        .filter((input) => input.connection)
-        .filter((output) => !visited.has(output.connection!.output.parent))
-        .map((input) => input.connection!.output.parent);
+        .filter((input) => input.connections.length)
+        .flatMap((input) => input.connections)
+        .filter((connection) => !visited.has(connection.output.parent))
+        .map((connection) => connection.output.parent);
 
       visited.add(item);
 
@@ -212,6 +214,7 @@ export class LogikGraph {
           serializedInput.property,
           serializedInput.name,
           serializedInput.editable,
+          serializedInput.multipleConnections,
           instance,
           true
         );
@@ -230,6 +233,7 @@ export class LogikGraph {
           serializedOutput.property,
           serializedOutput.name,
           serializedOutput.editable,
+          serializedOutput.multipleConnections,
           instance
         );
         output.id = serializedOutput.id;

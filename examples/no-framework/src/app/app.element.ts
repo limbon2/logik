@@ -36,24 +36,46 @@ class MakeTextNode extends LogikNode {
   constructor() {
     super('Make Text');
 
-    this.addOutput(LogikSocketType.Text, 'value', 'Value');
+    this.addOutput(LogikSocketType.Text, 'value', 'Value', true);
   }
 
   public override run(): void {
-    this.setOutputProperty(0, this.properties['value']);
+    const value = this.outputs[0].value;
+    this.setOutputProperty(0, value);
   }
 }
 
 class ToUpperCaseNode extends LogikNode {
   constructor() {
     super('To Upper Case');
-    this.addInput(LogikSocketType.Text, 'value', 'Input', false);
-    this.addOutput(LogikSocketType.Text, 'value', 'Output', false);
+    this.addInput(LogikSocketType.Text, 'value', 'Input', false, false);
+    this.addOutput(LogikSocketType.Text, 'value', 'Output', false, false);
   }
 
   public override run(): void {
     const text = this.getInputProperty(0);
     this.setOutputProperty(0, text.toUpperCase());
+  }
+}
+
+class CreateElementNode extends LogikNode {
+  constructor() {
+    super('Create element');
+    this.addInput(LogikSocketType.Consume, '', '', false);
+    this.addInput(LogikSocketType.Text, 'type', 'Type');
+    this.addInput(LogikSocketType.Text, 'content', 'Content');
+
+    this.addOutput(LogikSocketType.Produce, '', '', false);
+    this.addOutput(LogikSocketType.Text, 'element', 'Element', true, false);
+  }
+
+  public override run(): void {
+    const type = this.getInputProperty(1);
+    console.log('running create element', type);
+    const content = this.getInputProperty(2);
+    const element = document.createElement(type);
+    element.textContent = content;
+    document.body.appendChild(element);
   }
 }
 
@@ -76,6 +98,7 @@ registry.register('Begin', BeginNode, []);
 registry.register('Log', LogNode, []);
 registry.register('Make Text', MakeTextNode, []);
 registry.register('To Upper Case', ToUpperCaseNode, []);
+registry.register('Create element', CreateElementNode, []);
 
 const bus = new LogikEventBus();
 

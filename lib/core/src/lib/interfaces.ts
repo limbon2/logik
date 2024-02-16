@@ -14,6 +14,7 @@ export interface ISerializedLogikSocket {
   parentId: string;
   property: string;
   editable: boolean;
+  multipleConnections: boolean;
   isInput?: boolean;
 }
 

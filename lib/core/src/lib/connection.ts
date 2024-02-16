@@ -12,8 +12,23 @@ export class LogikConnection {
     public readonly input: LogikSocket,
     public readonly graph: LogikGraph
   ) {
-    output.connection = this;
-    input.connection = this;
+    if (output.multipleConnections) {
+      output.connections.push(this);
+    } else {
+      for (const connection of output.connections) {
+        this.graph.bus.emit('socket-disconnect', connection);
+      }
+      output.connections = [this];
+    }
+
+    if (input.multipleConnections) {
+      input.connections.push(this);
+    } else {
+      for (const connection of input.connections) {
+        this.graph.bus.emit('socket-disconnect', connection);
+      }
+      input.connections = [this];
+    }
   }
 
   public serialize(): ISerializedLogikConnection {

@@ -18,12 +18,12 @@ A visual editor project highly inspired by Unreal Engine blueprint editor. Prima
 - [x] Text Input
 - [x] Zoom in/zoom out
 - [x] Basic refactor
+- [x] Multiple or single connections to sockets
 - [ ] Styling
 - [ ] Serializable groups, comments
 - [ ] Search input for context menu
 - [ ] Number Input
 - [ ] Select Input
-- [ ] Multiple or single connections to sockets
 - [ ] Node config panel
 - [ ] Variables
 - [ ] Socket rerouting

@@ -13,12 +13,24 @@ export abstract class LogikNode {
 
   constructor(public name: string) {}
 
-  public addInput(type: LogikSocketType, property: string, name: string, editable?: boolean): void {
-    this.inputs.push(new LogikSocket(type, property, name, editable, this, true));
+  public addInput(
+    type: LogikSocketType,
+    property: string,
+    name: string,
+    multipleConnections?: boolean,
+    editable?: boolean
+  ): void {
+    this.inputs.push(new LogikSocket(type, property, name, editable, multipleConnections, this, true));
   }
 
-  public addOutput(type: LogikSocketType, property: string, name: string, editable?: boolean): void {
-    this.outputs.push(new LogikSocket(type, property, name, editable, this));
+  public addOutput(
+    type: LogikSocketType,
+    property: string,
+    name: string,
+    multipleConnections?: boolean,
+    editable?: boolean
+  ): void {
+    this.outputs.push(new LogikSocket(type, property, name, editable, multipleConnections, this));
   }
 
   /** Get property value at input index */
@@ -28,7 +40,7 @@ export abstract class LogikNode {
       throw new Error(
         `[ERROR]: Failed to get property of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in inputs`
       );
-    return socket.parent.properties[socket.property];
+    return socket.value;
   }
 
   /** Assign a value to a particular property in an output socket */
@@ -38,8 +50,10 @@ export abstract class LogikNode {
       throw new Error(
         `[ERROR]: Failed to assign property of socket with index ${index} on node ${this.name} - ${this.uuid}. Socket was not found in outputs`
       );
-    if (socket.connection) {
-      socket.connection.input.parent.properties[socket.property] = value;
+    if (socket.connections.length) {
+      for (const connection of socket.connections) {
+        connection.input.value = value;
+      }
     }
   }
 
