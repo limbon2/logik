@@ -62,10 +62,19 @@ export class LogikEditor {
     this.layer.add(this.invisibleGroup);
 
     this.visualValidator = new LogikEditorSocketVisualValidator(this.graph, this.layer, this.selectionHandler);
+
+    new ResizeObserver(() => {
+      this.fitStageIntoParentContainer();
+    }).observe(this.container);
+  }
+
+  private fitStageIntoParentContainer(): void {
+    this.stage.width(this.container.offsetWidth);
+    this.stage.height(this.container.offsetHeight);
   }
 
   private subscribeToNodeAddEvent(): void {
-    this.graph.onNodeAdded$.subscribe((event) => {
+    this.graph.onNodeAdded$.subscribe((event: any) => {
       const node = new LogikEditorNode(event.data, this.selectionHandler);
       node.x(this.mouseX);
       node.y(this.mouseY);

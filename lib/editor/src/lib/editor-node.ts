@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import Konva from 'konva';
 import { LogikNode } from '@logik/core';
 import { LogikEditorSocket } from './editor-socket';
@@ -70,7 +71,7 @@ export class LogikEditorNode extends Konva.Group {
    */
   private updateSocketsPosition(): void {
     const padding = 16;
-    const nodeNameHeight = this.nodeName.getClientRect().height;
+    const nodeNameHeight = this.nodeName.getClientRect({ relativeTo: this.getStage()! }).height;
 
     let inputY = nodeNameHeight + padding;
     for (const socket of this.inputs) {
@@ -78,7 +79,7 @@ export class LogikEditorNode extends Konva.Group {
       const x = socket.width() / 2 + padding;
       socket.x(x);
       socket.y(inputY);
-      inputY += socket.getClientRect().height + this.socketGap;
+      inputY += socket.getClientRect({ relativeTo: this.getStage()! }).height + this.socketGap;
     }
 
     let outputY = nodeNameHeight + padding;
@@ -87,7 +88,7 @@ export class LogikEditorNode extends Konva.Group {
       const x = this.background.width() - socket.width() / 2 - padding;
       socket.x(x);
       socket.y(outputY);
-      outputY += socket.getClientRect().height + this.socketGap;
+      outputY += socket.getClientRect({ relativeTo: this.getStage()! }).height + this.socketGap;
     }
   }
 
@@ -105,15 +106,15 @@ export class LogikEditorNode extends Konva.Group {
     /** Update socket position before calculating new height */
     this.updateSocketsPosition();
 
-    const nameHeight = this.nodeName.height();
+    const nameHeight = this.nodeName.getClientRect({ relativeTo: this.getStage()! }).height;
 
     /** Find overall height of sockets in inputs and outputs */
     const inputSocketHeight = this.inputs.reduce(
-      (curr, input) => curr + input.getClientRect().height + this.socketGap,
+      (curr, input) => curr + input.getClientRect({ relativeTo: this.getStage()! }).height + this.socketGap,
       0
     );
     const outputSocketHeight = this.outputs.reduce(
-      (curr, output) => curr + output.getClientRect().height + this.socketGap,
+      (curr, output) => curr + output.getClientRect({ relativeTo: this.getStage()! }).height + this.socketGap,
       0
     );
 

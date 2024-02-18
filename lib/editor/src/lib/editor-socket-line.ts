@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { LogikConnection } from '@logik/core';
 import Konva from 'konva';
 import { BehaviorSubject } from 'rxjs';
@@ -90,14 +91,17 @@ export class LogikEditorSocketLine extends Konva.Line {
 
   /** Update the line position and direction */
   public updatePoints(): void {
+    /** @TODO Get stage from origin because this.stage may be null. Happens because the line is removed on socket connect */
+    const stage = this.origin.getStage();
+
     /** Get origin socket location in the editor */
-    const { x, y } = this.origin.getAbsolutePosition();
+    const { x, y, width: w, height: h } = this.origin.background.getClientRect({ relativeTo: stage! });
 
     /** If we have any target socket connected */
     if (this.target) {
       /** Update direction towards new location of the target */
-      const { x: tx, y: ty } = this.target.getAbsolutePosition();
-      this.points([x, y, tx, ty]);
+      const { x: tx, y: ty, height: th } = this.target.background.getClientRect({ relativeTo: stage! });
+      this.points([x + w, y + h / 2, tx, ty + th / 2]);
     } else {
       const points = this.points();
       /** Set direction towards new provided points. Currently comes from the editor mouse move event */
