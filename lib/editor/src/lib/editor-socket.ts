@@ -28,7 +28,7 @@ export class LogikEditorSocket extends Konva.Group {
 
   constructor(
     public readonly model: LogikSocket,
-    isInput: boolean,
+    public readonly isInput: boolean,
     private readonly selectionHandler: LogikEditorSelectionHandler
   ) {
     super();

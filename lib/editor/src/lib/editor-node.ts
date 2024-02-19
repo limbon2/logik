@@ -23,7 +23,7 @@ export class LogikEditorNodeName extends Konva.Group {
 /** The visual representation of the node present in the editor */
 export class LogikEditorNode extends Konva.Group {
   private readonly socketGap: number = 4;
-  private background: Konva.Rect;
+  public background: Konva.Rect;
   private nodeName: LogikEditorNodeName;
 
   private readonly inputs: LogikEditorSocket[] = [];
