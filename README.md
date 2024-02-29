@@ -29,3 +29,4 @@ A visual editor project highly inspired by Unreal Engine blueprint editor. Prima
 - [ ] Socket rerouting
 - [ ] Fix bundling
 - [ ] Documentation
+- [ ] Project should only have konva and graphology dependencies
